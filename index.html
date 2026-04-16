@@ -1,0 +1,1303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>吉伊卡哇行程 App</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        @keyframes shake { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-5deg); } 75% { transform: rotate(5deg); } }
+        .ease-spring { transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1.5); }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+        .animate-pop { animation: pop 0.4s cubic-bezier(0.4, 0, 0.2, 1.5) forwards; }
+        .animate-shake { animation: shake 0.3s ease-in-out infinite; }
+        
+        input, textarea { font-size: 16px !important; }
+        .polaroid-card { box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+    </style>
+</head>
+<body class="bg-[#FFF4F7] text-[#5D4A45] font-sans selection:bg-[#FF82AB] selection:text-white">
+
+    <div class="max-w-[480px] mx-auto min-h-screen relative overflow-x-hidden pb-40">
+        
+        <!-- 🌸 背景 -->
+        <div class="fixed inset-0 pointer-events-none z-0 overflow-hidden max-w-[480px] mx-auto">
+            <div class="absolute top-[-10%] left-[-10%] w-[300px] h-[300px] bg-pink-200/30 rounded-full blur-3xl"></div>
+            <div class="absolute top-[30%] right-[-20%] w-[400px] h-[400px] bg-blue-100/30 rounded-full blur-3xl"></div>
+            <div class="absolute bottom-[10%] left-[20%] w-[350px] h-[350px] bg-purple-100/20 rounded-full blur-3xl"></div>
+            <div class="absolute inset-0 opacity-[0.15]" style="background-image: radial-gradient(#FFB6C1 1px, transparent 1px); background-size: 30px 30px;"></div>
+        </div>
+
+        <!-- Header -->
+        <header class="h-[220px] relative overflow-hidden shadow-sm z-10 rounded-b-[2.5rem] bg-white" id="app-header"></header>
+
+        <!-- Main Content -->
+        <main class="relative z-10" id="main-content"></main>
+
+        <!-- 底部導航欄 -->
+        <nav class="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto bg-white/80 backdrop-blur-xl border-t border-white shadow-[0_-10px_20px_rgba(255,209,220,0.2)] flex justify-between items-center pt-4 pb-8 px-4 z-40 rounded-t-[2.5rem]" id="bottom-nav"></nav>
+
+        <!-- 模態框根節點 -->
+        <div id="modal-root" class="relative z-50"></div>
+    </div>
+
+    <!-- 💡 注意：因為要串接 Firebase，這裡改成了 module -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // =========================================================================
+        // 🚨【非常重要】你的專屬 Firebase 雲端設定區 🚨
+        // =========================================================================
+        // 當你準備好要放在 GitHub 給家人用時，請把下面這個 null 替換成你的 Firebase Config！
+        // 格式長這樣：
+        // const MY_OWN_FIREBASE_CONFIG = {
+        //   apiKey: "AIzaSyAbi_Btk6fBxrG65I_xLO-yk1eEPZ-5Oj0",
+        //   authDomain: "chiikawa-page.firebaseapp.com",
+        //   projectId: "chiikawa-page",
+        //   storageBucket: "chiikawa-page.firebasestorage.app",
+        //   messagingSenderId: "637786151136",
+        //   appId: "1:637786151136:web:2c3513010b205f0892d885"
+        // };
+        
+        const MY_OWN_FIREBASE_CONFIG = null; 
+        
+        // =========================================================================
+
+        const bannerUrl = 'https://duk.tw/B9tOyb.jpg';
+        const exchangeIcon = 'https://duk.tw/lmBJQC.png'; 
+        const moneyGoneIcon = 'https://duk.tw/eLcMBf.png'; 
+        const dayIcons = [
+            'https://duk.tw/n0koZ4.png', 'https://duk.tw/YFP4wK.png', 'https://duk.tw/RqPX58.png',
+            'https://duk.tw/JZvQae.png', 'https://duk.tw/IKMBF0.png', 'https://duk.tw/WAx8MY.png',
+            'https://duk.tw/UlWOUT.png', 'https://duk.tw/Gtflqm.png', 'https://duk.tw/IkzH8c.png',
+            'https://duk.tw/ZVBd0X.png'
+        ];
+
+        const CustomIcons = {
+            Calculator: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><rect width="16" height="20" x="4" y="2" rx="2" /><line x1="8" x2="16" y1="6" y2="6" /><line x1="16" x2="16" y1="14" y2="18" /><path d="M16 10h.01" /><path d="M12 10h.01" /><path d="M8 10h.01" /><path d="M12 14h.01" /><path d="M8 14h.01" /><path d="M12 18h.01" /><path d="M8 18h.01" /></svg>`,
+            Utensils: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><path d="M3 2v7c0 1.1.9 2 2 2h4a2 2 0 0 0 2-2V2"/><path d="M7 2v20"/><path d="M21 15V2v0a5 5 0 0 0-5 5v6c0 1.1.9 2 2 2h3Zm0 0v7"/></svg>`,
+            Copy: `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-3.5 h-3.5"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>`
+        };
+
+        const locationsMap = {
+            'day1': { lat: 35.1815, lon: 136.9066, name: '名古屋' },
+            'day2': { lat: 35.1815, lon: 136.9066, name: '名古屋' },
+            'day3': { lat: 35.1743, lon: 137.0543, name: '長久手' },
+            'day4': { lat: 36.1461, lon: 137.2523, name: '高山' },
+            'day5': { lat: 36.6953, lon: 137.2113, name: '富山' },
+            'day6': { lat: 36.5664, lon: 137.6621, name: '立山' },
+            'day7': { lat: 36.5613, lon: 136.6562, name: '金澤' },
+            'day8': { lat: 35.8038, lon: 137.2464, name: '下呂' },
+            'day9': { lat: 35.3794, lon: 136.9456, name: '犬山' },
+            'day10': { lat: 35.1815, lon: 136.9066, name: '名古屋' }
+        };
+
+        const initialItineraryData = {
+            'day1': [
+                { type: 'flight', time: '06:00-08:30', location: '中部機場 (NGO)', notes: '抵達時間06:00，機場早餐待領租車', detail: '樂桃 MM722 (02:10出發)' },
+                { type: 'spot', time: '10:00-12:00', location: '熱田神宮', notes: '來參拜日本神劍，烏拉！！', highlights: '參拜與森林散步' },
+                { type: 'food', time: '12:30-14:30', location: '熱田蓬萊軒', notes: '鰻魚三吃必排，超美味呀哈！' },
+                { type: 'hotel', time: '18:00', location: '名古屋王子大飯店', notes: '第一晚早點休息！(含早餐)', detail: '欣賞高樓夜景' },
+            ],
+            'day2': [
+                { type: 'spot', time: '10:00-18:00', location: '名古屋市區散策 + 採買', notes: '要把藥妝和伴手禮買齊，呀哈！', highlights: '市區逛街、百貨與商店街' },
+                { type: 'hotel', time: '19:00', location: '名古屋榮彩鸿酒店', notes: '今晚入住榮商圈，逛街血拼超方便！', detail: 'Travelodge Nagoya Sakae' },
+            ],
+            'day3': [
+                { type: 'spot', time: '07:30-17:00', location: '吉卜力樂園', notes: '提早出發，進入宮崎駿的魔法世界！', highlights: '青春之丘、大倉庫' },
+                { type: 'hotel', time: '18:30', location: '名古屋榮彩鸿酒店', notes: '續住榮商圈，不用搬行李真開心，烏拉！！', detail: 'Travelodge Nagoya Sakae' },
+            ],
+            'day4': [
+                { type: 'flight', time: '06:00', location: '志榮抵達中部機場', notes: '弟弟抵達！準備會合，呀哈！', detail: '樂桃 MM722 (02:10 TPE出發)' },
+                { type: 'transport', time: '07:00-08:30', location: '中部機場接志榮', notes: '去機場接弟弟會合囉！' },
+                { type: 'spot', time: '09:00-10:30', location: '常滑招財貓踩點', notes: '超巨大的招財貓，祈求好運喵！' },
+                { type: 'spot', time: '11:30-13:00', location: '宮川朝市 / 高山老街', notes: '逛逛老街吃飛驒牛小吃！', highlights: '飛驒牛握壽司' },
+                { type: 'food', time: '13:00-15:00', location: '味藏天國', notes: '午間燒肉套餐超划算，大口吃肉！' },
+                { type: 'hotel', time: '17:00', location: 'TAOYA和倉', notes: '享受頂級溫泉與美食 (一泊二食)' },
+            ],
+            'day5': [
+                { type: 'spot', time: '09:30-11:30', location: '和倉溫泉周邊', notes: '泡完湯在附近散散步。' },
+                { type: 'food', time: '12:00-14:00', location: '近江町市場或冰見漁港', notes: '吃最新鮮的海鮮丼飯！' },
+                { type: 'spot', time: '14:30-17:00', location: '富山市區散策 + 採買', notes: '富山市區逛逛買買。' },
+                { type: 'hotel', time: '18:00', location: 'Hotel Enoe Toyama', notes: '富山住宿 (含早餐)' },
+            ],
+            'day6': [
+                { type: 'spot', time: '10:00-14:00', location: '立山車站 -> 黑部水庫', notes: '先去水庫看壯觀的景色。' },
+                { type: 'spot', time: '15:00-17:00', location: '天狗平周邊', notes: '感受高山雪景與大自然。' },
+                { type: 'hotel', time: '17:30', location: '天狗平山莊', notes: '立山上住一晚！(附簡單晚餐及早餐)' },
+            ],
+            'day7': [
+                { type: 'spot', time: '09:00-12:00', location: '參觀雪牆 (大雪谷)', notes: '冷颼颼的超高雪壁，記得穿暖！' },
+                { type: 'spot', time: '14:00-17:30', location: '金澤市區散策 + 採買', notes: '回到平地，逛逛金澤市區。' },
+                { type: 'hotel', time: '18:00', location: '金澤御宿野乃', notes: '日式榻榻米飯店 (含早餐)' },
+            ],
+            'day8': [
+                { type: 'transport', time: '10:10-11:30', location: '前往小松機場 (KMQ)', notes: '送弟弟志榮去搭機，一路順風！' },
+                { type: 'flight', time: '11:45', location: '志榮搭機返台', notes: '弟弟先回台灣啦！', detail: '長榮 BR157 (13:45抵達 TPE)' },
+                { type: 'spot', time: '14:00-16:00', location: '下呂溫泉街散策', notes: '日本三大名泉！泡足湯吃溫泉布丁。' },
+                { type: 'hotel', time: '16:30', location: '下呂溫泉水明館', notes: '老字號溫泉旅館享受 (一泊二食)' },
+            ],
+            'day9': [
+                { type: 'spot', time: '10:00-12:30', location: '有樂苑散策', notes: '欣賞國寶級茶室與日式庭園。' },
+                { type: 'food', time: '18:00-19:30', location: '犬山附近晚餐', notes: '找間好吃的餐廳犒賞自己。' },
+                { type: 'hotel', time: '20:00', location: '犬山英迪格', notes: '質感滿分的設計飯店 (含早餐)' },
+            ],
+            'day10': [
+                { type: 'spot', time: '09:30-12:00', location: '犬山城散策', notes: '日本現存最古老天守閣！' },
+                { type: 'spot', time: '14:00-18:00', location: '名古屋市區最後採買', notes: '把握最後機會爆買一波，呀哈！' },
+                { type: 'transport', time: '19:00-21:00', location: '機場貴賓室', notes: '搭機前休息一下。' },
+                { type: 'flight', time: '21:45', location: '虎航 IT209 航班', notes: '滿載而歸，回溫暖的家！', detail: 'NGO -> TPE (23:45抵達)' },
+            ],
+        };
+
+        const days = [
+            { id: 'day1', date: '5/8', name: '名古屋', icon: dayIcons[0] },
+            { id: 'day2', date: '5/9', name: '名古屋', icon: dayIcons[1] },
+            { id: 'day3', date: '5/10', name: '長久手', icon: dayIcons[2] },
+            { id: 'day4', date: '5/11', name: '高山', icon: dayIcons[3] },
+            { id: 'day5', date: '5/12', name: '富山', icon: dayIcons[4] },
+            { id: 'day6', date: '5/13', name: '立山', icon: dayIcons[5] },
+            { id: 'day7', date: '5/14', name: '金澤', icon: dayIcons[6] },
+            { id: 'day8', date: '5/15', name: '下呂', icon: dayIcons[7] },
+            { id: 'day9', date: '5/16', name: '犬山', icon: dayIcons[8] },
+            { id: 'day10', date: '5/17', name: '名古屋', icon: dayIcons[9] }
+        ];
+
+        const defaultChecklist = [
+            { id: 1, text: "護照 (吉伊說要帶！)", checked: false },
+            { id: 2, text: "日幣與信用卡 (小八幫你記著)", checked: false },
+            { id: 3, text: "行動電源 (兔兔會用到沒電)", checked: false },
+            { id: 4, text: "上網 eSIM 卡 (獅薩說要設定)", checked: false },
+            { id: 5, text: "VJW 註冊截圖 (呀哈！)", checked: false },
+            { id: 6, text: "立山黑部防寒外套", checked: false },
+            { id: 7, text: "常備藥品", checked: false }
+        ];
+
+        const getAIGuide = (location) => {
+            const guides = {
+                '中部機場 (NGO)': '抵達中部國際機場啦！下機後記得先去領車，機場裡也有超多好吃的可以先墊墊胃哦！呀哈！',
+                '熱田神宮': '烏拉！！這裡是日本三大神宮之一哦！裡面供奉著傳說中的草薙劍，吸收滿滿芬多精的同時，別忘了買個保平安的御守！',
+                '熱田蓬萊軒': '呀哈！這可是名古屋必吃的鰻魚飯始祖！『鰻魚三吃』：一吃原味、二吃加蔥海苔、三吃茶泡飯，好吃到要融化啦～',
+                '名古屋王子大飯店': '哇！這間飯店位在高樓層，晚上的夜景超級浪漫～記得早點起床享受豐盛的早餐哦，呀哈！',
+                '名古屋市區散策 + 採買': '榮商圈跟大須商店街超好逛！兔兔已經準備好要大買特買啦，藥妝、伴手禮一次買齊，烏拉！！',
+                '名古屋榮彩鴻酒店': '就在超熱鬧的榮商圈裡面！走幾步路就可以瘋狂血拼，逛累了隨時回來休息，超棒的！',
+                '吉卜力樂園': '進入宮崎駿的魔法世界啦！記得去『青春之丘』找貓男爵，還有『大倉庫』裡有無臉男可以合照哦！買周邊買到剁手手！',
+                '志榮抵達中部機場': '志榮終於抵達啦！大家要準備大合體了，超級期待接下來的行程，烏拉！！',
+                '中部機場接志榮': '呀哈！去機場接弟弟會合囉！人多一起玩最熱鬧了，接下來的旅程一定會更有趣！',
+                '前往小松機場 (KMQ)': '送弟弟去搭機囉，掰掰～雖然有點捨不得，但接下來我們還要繼續玩下去！烏拉！',
+                '志榮搭機返台': '弟弟先回台灣啦！搭長榮航空舒舒服服的，下次再一起出來玩喔！呀哈！',
+                '常滑招財貓踩點': '超巨大的『常滑系』招財貓就在這裡！保佑旅途平安又發大財，快來跟巨大貓頭合影喵～小八幫你拍！',
+                '宮川朝市 / 高山老街': '飛驒小京都！木造建築超有fu，一定要吃飛驒牛握壽司和五平餅，配上一口當地清酒，最高！呀哈！',
+                '味藏天國': '大口吃肉的時間到了，烏拉！！飛驒牛的油花超級美，入口即化，午間套餐超級划算，千萬別錯過！',
+                'TAOYA和倉': '哇～是頂級溫泉飯店！一泊二食太享受了，泡著暖呼呼的溫泉看海景，吉伊卡哇們都要睡著了...',
+                '和倉溫泉周邊': '泡完湯在附近散散步，吹吹海風超舒服的！還可以去找找看有沒有好吃的溫泉饅頭，呀哈！',
+                '近江町市場或冰見漁港': '金澤的廚房！海鮮超級新鮮，海鮮丼必吃，還有金箔冰淇淋可以嚐鮮，滿嘴都是奢華的味道呀哈！',
+                '富山市區散策 + 採買': '富山市有很棒的玻璃美術館，還有超美的環水公園星巴克！記得買些富山特產白蝦餅當伴手禮喔！',
+                'Hotel Enoe Toyama': '舒舒服服的富山住宿！睡個好覺，明天可是要上立山黑部呢，要養足精神！烏拉！',
+                '立山車站 -> 黑部水庫': '搭乘各種交通工具上山超好玩！黑部水庫洩洪氣勢磅礴，高山空氣超級清新，深呼吸～',
+                '天狗平周邊': '在高海拔的地方散步，風景超級壯觀！不過風有點大，兔兔提醒你要穿暖一點喔，呀哈！',
+                '天狗平山莊': '住在雲端之上！晚上天氣好的話可以看到滿天星空喔，超級浪漫的，大家一起吃簡單溫馨的晚餐吧！',
+                '參觀雪牆 (大雪谷)': '冷颼颼的烏拉！！高達十幾公尺的大雪壁超級壯觀，大自然的鬼斧神工絕對要多拍幾張照！',
+                '金澤市區散策 + 採買': '兼六園、東茶屋街、21世紀美術館都在這！充滿藝術與傳統氣息的城市，超好拍的啦！',
+                '金澤御宿野乃': '是日式榻榻米的飯店耶！走在裡面超舒服，晚上還有免費的夜鳴拉麵可以吃，小八超期待！',
+                '下呂溫泉街散策': '日本三大名泉之一！水質滑溜溜的被稱為『美人湯』，泡完皮膚會跟白煮蛋一樣嫩哦！記得吃溫泉布丁！',
+                '下呂溫泉水明館': '老字號的溫泉旅館，設施超棒的！換上浴衣在館內走走，享受一泊二食的懷石料理，太幸福了～',
+                '有樂苑散策': '裡面有國寶級的茶室『如庵』喔！在安靜的日式庭園散步，感覺整個人都平靜下來了呢，呀哈！',
+                '犬山附近晚餐': '找一間在地人推薦的好吃餐廳吧！吃飽飽才能為明天的最後衝刺做準備，烏拉！！',
+                '犬山英迪格': '這間設計飯店質感超級好！每個角落都充滿在地特色，還可以看到犬山城喔，晚上就在這裡開趴體吧！',
+                '犬山城散策': '日本現存最古老的天守閣！爬上頂樓可以俯瞰木曾川的絕景，城下的城下町也很好逛，吃個烤糰子吧！',
+                '名古屋市區最後採買': '最後的血拼衝刺！！把還沒買到的藥妝、零食、紀念品全部掃進行李箱，兔兔的魔法卡準備好了！',
+                '機場貴賓室': '要回家了有點不捨，在貴賓室喝杯飲料休息一下吧。回顧這趟旅程真的充滿快樂的回憶呢！',
+                '虎航 IT209 航班': '滿載而歸！帶著滿滿的戰利品跟回憶回溫暖的家囉～吉伊卡哇們也累壞了，在飛機上好好睡一覺吧，呀哈！'
+            };
+            return guides[location] || '這是一個充滿驚喜的新行程點！小八幫你記下來了，記得多拍幾張照片留念喔！烏拉！';
+        };
+
+        // ================= [全域狀態] =================
+        let state = {
+            activeTab: 'itinerary',
+            activeDay: 'day1',
+            jpyInput: 1000,
+            exchangeRate: 0.215,
+            isEditingRate: false,
+            activeAI: null,
+            copied: false,
+            copyItinerarySuccess: false, 
+            gachaResult: null,           
+            gachaAnimating: false,
+            fortuneResult: null,
+            isFortuneDrawing: false,
+            syncStatus: 'offline', // 'syncing', 'synced', 'offline', 'error'
+            
+            memories: [],
+            itinerary: initialItineraryData,
+            checklist: defaultChecklist,
+            
+            modalConfig: { isOpen: false, isEdit: false, dayId: '', index: null },
+            formData: { type: 'spot', time: '10:00-12:00', location: '', notes: '', detail: '', highlights: '' },
+            deleteConfirm: { isOpen: false, dayId: '', index: null, location: '' }
+        };
+
+        // ================= [Firebase 雲端同步系統] =================
+        let app, auth, db, user, appId;
+        const isCanvasEnv = typeof __firebase_config !== 'undefined';
+
+        // 判斷要用哪個資料庫
+        if (isCanvasEnv) {
+            app = initializeApp(JSON.parse(__firebase_config));
+            appId = __app_id;
+            state.syncStatus = 'syncing';
+        } else if (MY_OWN_FIREBASE_CONFIG) {
+            app = initializeApp(MY_OWN_FIREBASE_CONFIG);
+            appId = 'my-chiikawa-family-trip'; // 預設群組名稱
+            state.syncStatus = 'syncing';
+        } else {
+            console.log("未偵測到 Firebase Config，請自行申請加入");
+        }
+
+        if (app) {
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            const initAuth = async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            };
+
+            initAuth();
+
+            onAuthStateChanged(auth, (u) => {
+                user = u;
+                if (user) {
+                    // 開始監聽雲端資料變化
+                    const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'trip_data', 'shared_state');
+                    onSnapshot(docRef, (snapshot) => {
+                        if (snapshot.exists()) {
+                            const data = snapshot.data();
+                            state.itinerary = data.itinerary || initialItineraryData;
+                            state.checklist = data.checklist || defaultChecklist;
+                            state.memories = data.memories || [];
+                            state.exchangeRate = data.exchangeRate || 0.215;
+                            state.syncStatus = 'synced';
+                            renderDOM();
+                        } else {
+                            // 第一次進入，把預設資料存上雲端
+                            window.saveToCloud();
+                        }
+                    }, (error) => {
+                        console.error("同步錯誤:", error);
+                        state.syncStatus = 'error';
+                        renderDOM();
+                    });
+                }
+            });
+        }
+
+        // 取代原本存入 LocalStorage 的方法，變成存入雲端
+        window.saveToCloud = async () => {
+            if (!user || !db) {
+                // 如果沒有連上雲端，就偷偷存回本機就好，才不會卡住
+                alert('呀哈！你現在處於「離線模式」喔！\n你的資料只有你自己看得到。\n要跟家人同步的話，記得去設定 Firebase 喔！');
+                return;
+            }
+            
+            state.syncStatus = 'syncing';
+            renderDOM();
+
+            const docRef = doc(db, 'artifacts', appId, 'public', 'data', 'trip_data', 'shared_state');
+            try {
+                await setDoc(docRef, {
+                    itinerary: state.itinerary,
+                    checklist: state.checklist,
+                    memories: state.memories,
+                    exchangeRate: state.exchangeRate
+                });
+                state.syncStatus = 'synced';
+                renderDOM();
+            } catch (e) {
+                console.error("儲存失敗:", e);
+                state.syncStatus = 'error';
+                renderDOM();
+            }
+        };
+
+        // ================= [天氣 API 抓取邏輯] =================
+        window.weatherCache = {};
+        
+        window.fetchWeather = async (dayId) => {
+            if (window.weatherCache[dayId]) return;
+            window.weatherCache[dayId] = { loading: true };
+            renderDOM();
+            
+            try {
+                const loc = locationsMap[dayId];
+                const url = `https://api.open-meteo.com/v1/forecast?latitude=${loc.lat}&longitude=${loc.lon}&daily=weathercode,temperature_2m_max,temperature_2m_min&timezone=Asia%2FTokyo&forecast_days=1`;
+                const res = await fetch(url);
+                const data = await res.json();
+                
+                const max = Math.round(data.daily.temperature_2m_max[0]);
+                const min = Math.round(data.daily.temperature_2m_min[0]);
+                const code = data.daily.weathercode[0];
+                
+                let icon = '<i data-lucide="sun" class="text-orange-400"></i>';
+                let desc = '晴朗';
+                
+                if ([1, 2, 3].includes(code)) { icon = '<i data-lucide="cloud" class="text-blue-300"></i>'; desc = '多雲'; }
+                else if ([45, 48].includes(code)) { icon = '<i data-lucide="cloud-fog" class="text-gray-400"></i>'; desc = '起霧'; }
+                else if ([51, 53, 55, 61, 63, 65, 80, 81, 82].includes(code)) { icon = '<i data-lucide="cloud-rain" class="text-blue-500"></i>'; desc = '下雨'; }
+                else if ([71, 73, 75, 77, 85, 86].includes(code)) { icon = '<i data-lucide="snowflake" class="text-blue-200"></i>'; desc = '下雪'; }
+                else if ([95, 96, 99].includes(code)) { icon = '<i data-lucide="cloud-lightning" class="text-purple-500"></i>'; desc = '雷雨'; }
+
+                window.weatherCache[dayId] = { loading: false, max, min, icon, desc, locName: loc.name };
+            } catch (e) {
+                window.weatherCache[dayId] = { loading: false, error: true };
+            }
+            renderDOM();
+        };
+
+        // ================= [幫助函數] =================
+        const escapeHTML = (str) => {
+            if (!str) return '';
+            return str.replace(/[&<>'"]/g, 
+                tag => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[tag] || tag)
+            );
+        };
+
+        const getGreeting = () => {
+            const hour = new Date().getHours();
+            if (hour < 11) return '早安呀哈！準備出發！';
+            if (hour < 17) return '午安烏拉！玩得開心嗎？';
+            if (hour < 21) return '晚安～來吃頓大餐吧！';
+            return '夜深了，早點休息呀哈！';
+        };
+
+        const getCountdown = () => {
+            const targetDate = new Date('2026-05-08T00:00:00+08:00').getTime();
+            const now = new Date().getTime();
+            const diff = targetDate - now;
+            const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+
+            if (daysLeft > 0) {
+                return `距離出發還有 <span class="text-[#FF6B9E] font-black mx-1 text-[13px]">${daysLeft}</span> 天！呀哈！`;
+            } else if (daysLeft === 0) {
+                return `就是今天！準備出發！烏拉！！`;
+            } else {
+                return `旅途愉快！盡情享受吧！🍡`;
+            }
+        };
+
+        const renderDOM = () => {
+            renderHeader();
+            renderMainContent();
+            renderNav();
+            renderModals();
+            lucide.createIcons();
+        };
+
+        // ================= [渲染函數] =================
+        const renderHeader = () => {
+            const dayIndex = days.findIndex(d => d.id === state.activeDay);
+            const tripProgress = Math.round(((dayIndex + 1) / days.length) * 100);
+            
+            // 💡 雲端同步狀態指示器
+            let syncIndicator = '';
+            if (state.syncStatus === 'synced') syncIndicator = '<div class="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-black text-green-500 shadow-sm flex items-center gap-1"><i data-lucide="cloud-check" class="w-3 h-3"></i> 已同步</div>';
+            else if (state.syncStatus === 'syncing') syncIndicator = '<div class="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-black text-blue-500 shadow-sm flex items-center gap-1"><i data-lucide="cloud-cog" class="w-3 h-3 animate-spin"></i> 同步中</div>';
+            else if (state.syncStatus === 'error') syncIndicator = '<div class="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-black text-red-500 shadow-sm flex items-center gap-1"><i data-lucide="cloud-off" class="w-3 h-3"></i> 同步失敗</div>';
+            else syncIndicator = '<div class="absolute top-4 right-4 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full text-[10px] font-black text-gray-400 shadow-sm flex items-center gap-1" onclick="alert(\'你目前沒有連上雲端資料庫。請照著開發者的教學設定 Firebase 來開啟同步功能喔！\')"><i data-lucide="cloud-off" class="w-3 h-3"></i> 單機模式</div>';
+
+            document.getElementById('app-header').innerHTML = `
+                <div class="absolute inset-0 bg-cover bg-center opacity-80" style="background-image: url('${bannerUrl}')"></div>
+                <div class="absolute inset-x-0 bottom-0 h-full bg-gradient-to-t from-[#FFF4F7] via-[#FFF4F7]/60 to-transparent"></div>
+                
+                <div class="absolute top-4 left-4 bg-white/80 backdrop-blur-md px-3.5 py-1.5 rounded-full text-[11px] font-black text-[#FF6B9E] shadow-[0_2px_10px_rgba(255,107,158,0.2)] flex items-center gap-1.5">
+                    <i data-lucide="sparkles" class="w-3.5 h-3.5 text-[#FF6B9E]"></i>
+                    ${getGreeting()}
+                </div>
+
+                ${syncIndicator}
+
+                <div class="absolute bottom-5 left-0 w-full px-6">
+                    <h1 class="text-[26px] font-black tracking-widest text-[#5D4A45] drop-shadow-sm mb-1 flex items-center gap-2">
+                        中部 · 北陸之旅 <span class="text-xl">🍡</span>
+                    </h1>
+                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                        <span class="text-[10px] font-bold text-[#FF6B9E] bg-white/90 shadow-sm px-3 py-1 rounded-full uppercase tracking-widest">2026.05 Journey</span>
+                        <span class="text-[11px] font-bold text-[#5D4A45] bg-white/70 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+                            <i data-lucide="calendar-heart" class="w-3.5 h-3.5 text-[#FF6B9E]"></i>
+                            ${getCountdown()}
+                        </span>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <div class="h-1.5 flex-1 bg-white/80 rounded-full overflow-hidden shadow-inner">
+                            <div class="h-full bg-gradient-to-r from-[#FF9EBE] to-[#FF6B9E] rounded-full transition-all duration-500" style="width: ${tripProgress}%"></div>
+                        </div>
+                        <span class="text-[9px] font-black text-[#5D4A45]/70">DAY ${dayIndex + 1}/10</span>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderNav = () => {
+            const tabs = [
+                { id: 'prep', icon: '<i data-lucide="shopping-bag" class="w-6 h-6"></i>', label: '行前提醒', activeClass: 'bg-gradient-to-br from-[#7DD3FC] to-[#38BDF8] text-white shadow-[0_4px_10px_rgba(56,189,248,0.3)]', inactiveClass: 'bg-white/90 text-[#38BDF8]', textActive: 'text-[#38BDF8]' },
+                { id: 'itinerary', icon: '<i data-lucide="map-pin" class="w-6 h-6"></i>', label: '夢幻行程', activeClass: 'bg-gradient-to-br from-[#FF9EBE] to-[#FF82AB] text-white shadow-[0_4px_10px_rgba(255,130,171,0.3)]', inactiveClass: 'bg-white/90 text-[#FF82AB]', textActive: 'text-[#FF82AB]' },
+                { id: 'album', icon: '<i data-lucide="camera" class="w-6 h-6"></i>', label: '相冊', activeClass: 'bg-gradient-to-br from-[#A78BFA] to-[#C084FC] text-white shadow-[0_4px_10px_rgba(167,139,250,0.3)]', inactiveClass: 'bg-white/90 text-[#C084FC]', textActive: 'text-[#C084FC]' },
+                { id: 'tools', icon: CustomIcons.Calculator, label: '小幫手', activeClass: 'bg-gradient-to-br from-[#FDE047] to-[#EAB308] text-white shadow-[0_4px_10px_rgba(234,179,8,0.3)]', inactiveClass: 'bg-white/90 text-[#EAB308]', textActive: 'text-[#EAB308]' },
+            ];
+
+            let html = '';
+            tabs.forEach(tab => {
+                const isActive = state.activeTab === tab.id;
+                html += `
+                    <button onclick="window.switchTab('${tab.id}')" class="flex-1 flex flex-col items-center gap-1.5 transition-all duration-300 ${isActive ? 'scale-110 -translate-y-1' : 'opacity-50 hover:opacity-100'}">
+                        <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-[1.2rem] flex items-center justify-center shadow-sm border border-white transition-all ${isActive ? tab.activeClass : tab.inactiveClass}">
+                            ${tab.icon}
+                        </div>
+                        <span class="text-[10px] font-black uppercase tracking-tighter ${isActive ? tab.textActive : 'text-[#5D4A45]'}">${tab.label}</span>
+                    </button>
+                `;
+            });
+            document.getElementById('bottom-nav').innerHTML = html;
+        };
+
+        const renderMainContent = () => {
+            let html = '';
+            if (state.activeTab === 'itinerary') {
+                html = generateItineraryHTML();
+            } else if (state.activeTab === 'tools') {
+                html = generateToolsHTML();
+            } else if (state.activeTab === 'prep') {
+                html = generatePrepHTML();
+            } else if (state.activeTab === 'album') { 
+                html = generateAlbumHTML();
+            }
+            document.getElementById('main-content').innerHTML = `<div class="animate-fadeIn">${html}</div>`;
+        };
+
+        const generateAlbumHTML = () => {
+            let memoriesHtml = '';
+            
+            if (state.memories.length === 0) {
+                memoriesHtml = `
+                    <div class="col-span-2 text-center py-12 flex flex-col items-center justify-center text-gray-400">
+                        <i data-lucide="image-plus" class="w-12 h-12 mb-3 text-pink-200"></i>
+                        <p class="font-bold text-sm">還沒有照片喔！<br>快點上傳你們的第一張合照吧！呀哈！</p>
+                    </div>
+                `;
+            } else {
+                state.memories.forEach((mem, index) => {
+                    const rotation = index % 2 === 0 ? '-rotate-2' : 'rotate-2';
+                    const translation = index % 3 === 0 ? 'translate-y-2' : '';
+                    
+                    memoriesHtml += `
+                        <div class="polaroid-card bg-white p-2.5 pb-4 rounded-lg border border-gray-100 transform transition-transform ${rotation} ${translation} hover:scale-105 hover:z-10 relative group">
+                            <div class="aspect-square bg-gray-100 rounded-md mb-3 overflow-hidden relative">
+                                <img src="${mem.image}" class="w-full h-full object-cover" />
+                                <button onclick="window.deleteMemory(${mem.id})" class="absolute top-1.5 right-1.5 bg-black/60 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity active:scale-95 shadow-sm">
+                                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                </button>
+                            </div>
+                            <p class="text-[#5D4A45] font-black text-[13px] text-center line-clamp-2 leading-tight">${escapeHTML(mem.caption)}</p>
+                            <p class="text-gray-400 text-[9px] text-center mt-1.5 font-bold uppercase tracking-wider">${mem.date}</p>
+                        </div>
+                    `;
+                });
+            }
+
+            return `
+                <div class="px-5 mt-4 space-y-6">
+                    <div class="bg-white/80 backdrop-blur-md border border-white rounded-[2.5rem] p-6 shadow-md relative">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="font-black text-xl text-[#C084FC] flex items-center gap-2">
+                                <i data-lucide="camera" class="w-6 h-6"></i> 回憶拍立得
+                            </h2>
+                            
+                            <button onclick="window.triggerPhotoUpload()" class="bg-gradient-to-r from-[#D8B4FE] to-[#C084FC] text-white px-4 py-2 rounded-full font-black text-sm shadow-sm hover:shadow-md active:scale-95 transition-all flex items-center gap-1.5">
+                                <i data-lucide="plus" class="w-4 h-4"></i> 新增
+                            </button>
+                            <input type="file" id="photo-upload" accept="image/*" class="hidden" onchange="window.handlePhotoUpload(event)">
+                        </div>
+                        
+                        <p class="text-[11px] font-bold text-gray-400 mb-6 bg-purple-50/50 p-3 rounded-xl border border-purple-100">
+                            💡 貼心提醒：因為是雲端共用相簿，為了不塞爆空間，照片上傳時會自動「復古壓縮」成拍立得大小喔！
+                        </p>
+
+                        <div class="grid grid-cols-2 gap-4 pb-4">
+                            ${memoriesHtml}
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const generateItineraryHTML = () => {
+            const currentDayInfo = days.find(d => d.id === state.activeDay) || days[0];
+            const currentItinerary = state.itinerary[state.activeDay] || [];
+
+            let daysHtml = '';
+            days.forEach(day => {
+                const isActive = state.activeDay === day.id;
+                daysHtml += `
+                    <button onclick="window.switchDay('${day.id}')" class="flex-shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full transition-all duration-300 shadow-sm border border-white ${isActive ? 'bg-gradient-to-r from-[#FF9EBE] to-[#FF82AB] text-white shadow-[#FF82AB]/30 scale-105' : 'bg-white/90 text-[#5D4A45]/60 hover:bg-white'}">
+                        <img src="${day.icon}" class="w-6 h-6 object-contain ${!isActive ? 'grayscale opacity-60' : ''}" alt="${day.id}" />
+                        <div class="flex flex-col items-start">
+                            <span class="text-[10px] font-bold tracking-widest uppercase ${isActive ? 'text-white/90' : 'text-[#5D4A45]/40'}">DAY ${day.id.replace('day', '')}</span>
+                            <span class="text-[13px] font-black leading-none mt-0.5 ${isActive ? 'text-white' : 'text-[#5D4A45]'}">${day.date}</span>
+                        </div>
+                    </button>
+                `;
+            });
+
+            const weather = window.weatherCache[state.activeDay];
+            let weatherHtml = '';
+            let weatherTitle = '當地即時天氣';
+            
+            if (!weather || weather.loading) {
+                weatherHtml = `
+                    <div class="flex items-center gap-1.5 mt-1">
+                        <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-[#FF6B9E]"></i>
+                        <span class="font-black text-gray-400 text-sm">抓取中...</span>
+                    </div>
+                `;
+                if (!weather) setTimeout(() => window.fetchWeather(state.activeDay), 0);
+            } else if (weather.error) {
+                weatherHtml = `
+                    <div class="flex items-center gap-1.5 mt-1 text-gray-400">
+                        <span class="font-black text-sm">無法取得天氣</span>
+                    </div>
+                `;
+            } else {
+                weatherTitle = `${weather.locName}即時`;
+                weatherHtml = `
+                    <div class="flex items-center gap-1.5 mt-0.5">
+                        <div class="text-[22px] drop-shadow-sm flex items-center">${weather.icon}</div>
+                        <span class="font-black text-[#5D4A45] text-[15px]">${weather.min}°-${weather.max}°C</span>
+                    </div>
+                `;
+            }
+
+            let listHtml = '';
+            if (currentItinerary.length === 0) {
+                listHtml = `
+                    <div class="text-center py-10 text-[#FF82AB] font-bold">
+                        <p>這天還沒有行程喔！</p>
+                        <p class="text-sm opacity-60 mt-1">點擊下方按鈕加入新行程吧 呀哈！</p>
+                    </div>
+                `;
+            } else {
+                currentItinerary.forEach((item, idx) => {
+                    let theme = { node: 'bg-[#93C5FD] border-[#DBEAFE]', pill: 'from-[#8BA4F9] to-[#A7BbfA]', text: 'text-[#2E3192]', icon: '<i data-lucide="plane" class="w-3.5 h-3.5"></i>', label: '航班資訊' };
+                    if (item.type === 'spot') theme = { node: 'bg-[#F472B6] border-[#FCE7F3]', pill: 'from-[#F472B6] to-[#F9A8D4]', text: 'text-[#831843]', icon: '<i data-lucide="map-pin" class="w-3.5 h-3.5"></i>', label: '景點行程' };
+                    else if (item.type === 'hotel') theme = { node: 'bg-[#FBBF24] border-[#FEF3C7]', pill: 'from-[#FBBF24] to-[#FDE68A]', text: 'text-[#78350F]', icon: '<i data-lucide="bed" class="w-3.5 h-3.5"></i>', label: '住宿地點' };
+                    else if (item.type === 'food') theme = { node: 'bg-[#FB923C] border-[#FFEDD5]', pill: 'from-[#FB923C] to-[#FDBA74]', text: 'text-[#7C2D12]', icon: CustomIcons.Utensils, label: '美食推薦' };
+                    else if (item.type === 'transport') theme = { node: 'bg-[#9CA3AF] border-[#F3F4F6]', pill: 'from-[#9CA3AF] to-[#D1D5DB]', text: 'text-[#374151]', icon: '<i data-lucide="car" class="w-3.5 h-3.5"></i>', label: '交通接駁' };
+
+                    const isAIOpen = state.activeAI === idx;
+                    const watermarkImage = dayIcons[idx % 10];
+                    
+                    const safeLocationName = escapeHTML(item.location);
+                    const safeTime = escapeHTML(item.time);
+                    const safeNotes = escapeHTML(item.notes || '點擊編輯新增備註');
+                    const safeDetail = escapeHTML(item.detail);
+
+                    let aiHtml = '';
+                    if (isAIOpen) {
+                        aiHtml = `
+                            <div class="mt-4 pt-4 border-t-2 border-dashed border-[#F3E5E2]/60 animate-fadeIn relative z-10">
+                                <div class="bg-gradient-to-br from-[#FDF4FF] to-[#FFF1F2] border border-white p-4 rounded-2xl relative shadow-sm">
+                                    <div class="absolute -top-3 left-4 bg-white text-[#D946EF] text-[10px] font-black px-3 py-0.5 rounded-full flex items-center gap-1 shadow-sm border border-purple-50">
+                                        <i data-lucide="bot" class="w-3 h-3"></i> 小八為您介紹
+                                    </div>
+                                    <p class="text-[13px] font-bold text-[#701A75] leading-relaxed mt-2 animate-fadeIn">
+                                        ${getAIGuide(item.location)}
+                                    </p>
+                                </div>
+                            </div>
+                        `;
+                    }
+
+                    listHtml += `
+                        <div class="relative z-10 mb-8 last:mb-0 group">
+                            <div class="absolute -left-10 top-5 w-4 h-4 rounded-full border-[3px] shadow-sm z-20 ${theme.node} border-white ring-4 ring-white/50 transition-transform group-hover:scale-110"></div>
+                            
+                            <div class="bg-white/80 backdrop-blur-md border border-white rounded-[2rem] p-5 shadow-[0_4px_20px_rgba(230,210,215,0.4)] relative overflow-hidden transition-all duration-300">
+                                <div class="absolute -top-10 -right-10 w-32 h-32 rounded-full blur-2xl opacity-20 bg-gradient-to-br ${theme.pill}"></div>
+                                
+                                <img src="${watermarkImage}" class="absolute -bottom-2 -right-4 w-36 h-36 object-contain opacity-[0.15] -rotate-12 pointer-events-none select-none z-20 mix-blend-multiply" alt="" />
+                                
+                                <div class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-white bg-gradient-to-r ${theme.pill} shadow-sm mb-4 relative z-10">
+                                    ${theme.icon}
+                                    <span class="text-[11px] font-black tracking-widest">${theme.label} · ${safeTime}</span>
+                                </div>
+                                
+                                <h3 class="text-[22px] font-black leading-tight mb-4 ${theme.text} relative z-10 tracking-wide">${safeLocationName}</h3>
+                                
+                                <div class="bg-[#F8FAFC]/90 border border-white rounded-[1.5rem] p-4 mb-4 shadow-sm relative z-10">
+                                    ${item.detail ? `
+                                        <div class="flex items-center gap-2.5 text-[#2E3192] font-black text-sm mb-3">
+                                            <i data-lucide="ticket" class="w-4 h-4 text-[#8BA4F9]"></i>
+                                            ${safeDetail}
+                                        </div>
+                                    ` : ''}
+                                    <div class="flex items-start gap-2.5 text-[#5D4A45]/80 text-[13px] font-bold leading-relaxed whitespace-pre-line">
+                                        <i data-lucide="pencil-line" class="w-4 h-4 text-[#A7BbfA] shrink-0 mt-0.5"></i>
+                                        <span>${safeNotes}</span>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex justify-between items-center mt-2 relative z-10">
+                                    <div class="flex flex-wrap gap-2">
+                                        ${(item.type !== 'transport' && item.type !== 'flight') ? `
+                                            <button onclick="window.toggleAI(${idx})" class="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black transition-all active:scale-95 border ${isAIOpen ? 'bg-[#FF82AB] text-white border-[#FF82AB] shadow-md shadow-pink-200' : 'bg-[#FFF0F4] text-[#FF6B9E] border-white shadow-sm hover:bg-[#FFE4EC]'}">
+                                                <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+                                                <span class="text-[11px] tracking-widest">AI 導覽</span>
+                                            </button>
+                                        ` : ''}
+                                        <button onclick="window.openGoogleMaps('${state.activeDay}', ${idx})" class="flex items-center gap-1.5 px-3.5 py-2 rounded-full font-black transition-all active:scale-95 border border-white shadow-sm bg-[#F0F9FF] text-[#38BDF8] hover:bg-[#E0F2FE]">
+                                            <i data-lucide="navigation" class="w-3.5 h-3.5"></i>
+                                            <span class="text-[11px] tracking-widest">定位</span>
+                                        </button>
+                                    </div>
+                                    <div class="flex items-center gap-1.5 shrink-0">
+                                        <button onclick="window.openEditModal('${state.activeDay}', ${idx})" class="flex items-center justify-center w-8 h-8 rounded-xl bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0] transition-colors border border-white shadow-sm active:scale-95"><i data-lucide="edit" class="w-3.5 h-3.5"></i></button>
+                                        <button onclick="window.confirmDelete('${state.activeDay}', ${idx})" class="flex items-center justify-center w-8 h-8 rounded-xl bg-[#F1F5F9] text-[#94A3B8] hover:bg-red-50 hover:text-red-400 transition-colors border border-white shadow-sm active:scale-95"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>
+                                    </div>
+                                </div>
+                                ${aiHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                listHtml += `
+                    <button onclick="window.copyTodayItinerary()" class="w-full mt-2 flex items-center justify-center gap-2 py-4 bg-[#00B900]/10 text-[#00B900] border border-[#00B900]/30 rounded-[1.5rem] font-black transition-colors active:scale-95 shadow-sm">
+                        <i data-lucide="${state.copyItinerarySuccess ? 'check-circle' : 'message-circle'}" class="w-5 h-5"></i> 
+                        ${state.copyItinerarySuccess ? '已複製！快貼到 LINE 給旅伴呀哈！' : '複製今日行程 (給旅伴)'}
+                    </button>
+                `;
+            }
+
+            return `
+                <div class="sticky top-0 z-40 bg-[#FFF4F7]/95 backdrop-blur-lg pt-4 pb-3 px-5 border-b border-white/60 shadow-sm">
+                    <div class="flex overflow-x-auto gap-3 no-scrollbar pb-1">${daysHtml}</div>
+                </div>
+                
+                <div class="px-5 mt-4 space-y-5">
+                    <div class="flex gap-3 mb-6">
+                        <button onclick="window.openGoogleMapsRoute()" class="flex-1 bg-gradient-to-r from-[#FFEFF4] to-[#FFF9FB] border border-white rounded-[1.5rem] p-3 flex items-center justify-center gap-2 shadow-[0_4px_15px_rgba(255,130,171,0.1)] active:scale-95 transition-transform">
+                            <div class="w-8 h-8 rounded-full bg-[#FF82AB] flex items-center justify-center shadow-sm">
+                                <i data-lucide="map" class="w-4 h-4 text-white"></i>
+                            </div>
+                            <span class="font-black text-[#FF6B9E] tracking-wider text-sm">開啟整日路線</span>
+                        </button>
+                        
+                        <div class="shrink-0 bg-white/90 backdrop-blur-md border border-white rounded-[1.5rem] px-4 py-3 flex flex-col items-center justify-center shadow-sm min-w-[100px]">
+                            <div class="text-[9px] font-black text-[#5D4A45]/60 flex items-center gap-1">
+                                <i data-lucide="sparkles" class="w-2.5 h-2.5 text-yellow-400"></i> ${weatherTitle}
+                            </div>
+                            ${weatherHtml}
+                        </div>
+                    </div>
+
+                    <div class="relative pl-10 pb-8 mt-4">
+                        <div class="absolute top-4 bottom-8 left-[17px] w-0 border-l-[3px] border-dotted border-[#FFD1DC]/80 z-0"></div>
+                        ${listHtml}
+                        
+                        <button onclick="window.openAddModal()" class="w-full mt-4 flex items-center justify-center gap-2 py-4 border-[3px] border-dashed border-[#FFD1DC] rounded-[2rem] text-[#FF82AB] font-black hover:bg-[#FFF0F4] hover:border-[#FF82AB] transition-colors active:scale-95 shadow-sm bg-white/70 backdrop-blur-sm">
+                            <i data-lucide="plus" class="w-5 h-5"></i> 新增夢幻行程
+                        </button>
+                    </div>
+                </div>
+            `;
+        };
+
+        const generateToolsHTML = () => {
+            const twdResult = Math.round(state.jpyInput * state.exchangeRate).toLocaleString();
+            
+            let rateInputHtml = '';
+            if (state.isEditingRate) {
+                rateInputHtml = `<input type="number" step="0.001" value="${state.exchangeRate}" onchange="window.updateRateValue(this.value)" onblur="window.toggleRateEdit(false)" autofocus class="w-20 bg-white border border-pink-200 rounded px-2 py-0.5 text-base font-black text-[#FF6B9E] text-center outline-none" />`;
+            } else {
+                rateInputHtml = `<button onclick="window.toggleRateEdit(true)" class="flex items-center gap-1 text-xs font-black text-[#FF6B9E] bg-[#FFF0F4] px-3 py-1 rounded-full border border-white shadow-sm hover:bg-[#FFE4EC]">${state.exchangeRate} <i data-lucide="edit" class="w-3 h-3"></i></button>`;
+            }
+
+            return `
+                <div class="px-5 mt-4 space-y-6">
+                    
+                    <div class="bg-white/80 backdrop-blur-md border border-white rounded-[2.5rem] p-8 text-center shadow-md relative">
+                        <div class="w-32 h-32 mx-auto mb-4">
+                            <img src="${exchangeIcon}" class="w-full h-full object-contain drop-shadow-lg" alt="換算小幫手" />
+                        </div>
+                        
+                        <h3 class="font-black text-xl mb-6 text-[#5D4A45] flex items-center justify-center gap-2">
+                            <img src="${moneyGoneIcon}" class="h-8 w-auto object-contain drop-shadow-sm" alt="已經沒有錢了" /> 
+                            匯率小幫手
+                        </h3>
+                        
+                        <div class="flex justify-center items-center gap-2 mb-6">
+                            <span class="text-[10px] font-bold text-[#5D4A45]/50">目前匯率：</span>
+                            ${rateInputHtml}
+                        </div>
+
+                        <div class="flex justify-center gap-2 mb-4">
+                            ${[1000, 5000, 10000].map(amt => `
+                                <button onclick="window.updateJpy(${amt})" class="bg-white hover:bg-[#FDE047] border border-gray-100 shadow-sm text-[#5D4A45] text-[11px] font-black py-2 px-4 rounded-full transition-all active:scale-95">¥${amt.toLocaleString()}</button>
+                            `).join('')}
+                        </div>
+                        
+                        <div class="space-y-4">
+                            <div class="relative">
+                                <span class="absolute left-5 top-1/2 -translate-y-1/2 font-black text-[#5D4A45]/40 text-lg">JPY ¥</span>
+                                <input type="number" id="jpy-input" value="${state.jpyInput}" oninput="window.handleJpyInput(this.value)" class="w-full bg-white/90 border border-white rounded-[1.8rem] py-4 pl-24 pr-6 text-xl font-black outline-none focus:border-[#FDE047] focus:ring-4 focus:ring-[#FEF3B4]/30 shadow-inner text-right text-[#5D4A45]" />
+                            </div>
+                            <div class="py-2 flex justify-center text-3xl text-[#FDE047]">⬇</div>
+                            <div class="bg-gradient-to-br from-[#FEFCE8] to-white border border-white p-6 rounded-[2rem] shadow-sm relative">
+                                <div class="text-[10px] font-black text-yellow-600/50 uppercase tracking-[0.2em] mb-1">呀哈！大約等於</div>
+                                <span class="text-3xl font-black tracking-tighter text-[#5D4A45]" id="twd-result-text">NT$ ${twdResult}</span>
+                                
+                                <button onclick="window.copyToClipboard()" id="copy-btn" class="absolute top-4 right-4 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black transition-all border shadow-sm ${state.copied ? 'bg-green-100 text-green-600 border-green-200' : 'bg-white text-[#5D4A45]/60 hover:text-[#5D4A45] border-white hover:bg-gray-50'}">
+                                    ${state.copied ? '<i data-lucide="check-circle" class="w-3.5 h-3.5"></i>' : CustomIcons.Copy}
+                                    ${state.copied ? '已複製' : '複製'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white/80 backdrop-blur-md border border-white rounded-[2.5rem] p-8 text-center shadow-md relative">
+                        <h3 class="font-black text-xl mb-3 text-[#5D4A45] flex items-center justify-center gap-2">
+                            <i data-lucide="dices" class="w-6 h-6 text-[#FF82AB]"></i>
+                            兔兔的晚餐扭蛋機
+                        </h3>
+                        <p class="text-xs font-bold text-[#5D4A45]/60 mb-6">選擇困難嗎？讓兔兔幫你決定今晚吃什麼！烏拉！！</p>
+                        
+                        <div class="bg-[#FFF0F4] border border-pink-100 rounded-[1.5rem] p-6 mb-6 h-[100px] flex items-center justify-center shadow-inner">
+                            <span class="text-2xl font-black text-[#FF6B9E] ${state.gachaAnimating ? 'animate-pulse' : ''}">
+                                ${state.gachaResult || '❓ 點擊按鈕抽籤 ❓'}
+                            </span>
+                        </div>
+                        
+                        <button onclick="window.playGacha()" class="w-full bg-gradient-to-r from-[#FF9EBE] to-[#FF82AB] text-white font-black text-lg py-4 rounded-[1.5rem] shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                            ${state.gachaAnimating ? '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> 兔兔正在想...' : '🎲 抽籤決定！'}
+                        </button>
+                    </div>
+
+                    <div class="bg-white/80 backdrop-blur-md border border-white rounded-[2.5rem] p-6 shadow-md relative text-center pb-10">
+                        <h3 class="font-black text-[18px] mb-2 text-[#5D4A45] flex items-center justify-center gap-2">
+                            <span class="text-2xl">⛩️</span> 每日好運御神籤
+                        </h3>
+                        <p class="text-[11px] font-bold text-[#5D4A45]/60 mb-5">每天早上出門前，讓小八幫你抽一張好運籤！</p>
+                        
+                        <div class="bg-gradient-to-b from-red-50 to-white rounded-[1.5rem] p-6 border border-red-100 shadow-inner min-h-[120px] flex items-center justify-center mb-5">
+                            ${state.isFortuneDrawing ? `
+                                <div class="animate-shake flex flex-col items-center gap-2">
+                                    <span class="text-4xl">🎋</span>
+                                    <span class="text-red-500 font-black text-sm">小八正在用力搖籤筒...</span>
+                                </div>
+                            ` : state.fortuneResult ? `
+                                <div class="animate-pop text-[#B91C1C] font-black text-lg leading-relaxed px-2">
+                                    ${state.fortuneResult}
+                                </div>
+                            ` : `
+                                <span class="text-gray-400 font-bold text-sm">今天運勢如何呢？</span>
+                            `}
+                        </div>
+                        
+                        <button onclick="window.drawFortune()" class="w-full bg-gradient-to-r from-red-400 to-red-500 text-white font-black text-lg py-4 rounded-[1.5rem] shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2" ${state.isFortuneDrawing ? 'disabled' : ''}>
+                            搖籤筒！
+                        </button>
+                    </div>
+
+                </div>
+            `;
+        };
+
+        const generatePrepHTML = () => {
+            const completed = state.checklist.filter(i => i.checked).length;
+            const progress = state.checklist.length === 0 ? 0 : Math.round((completed / state.checklist.length) * 100);
+
+            let listHtml = '';
+            state.checklist.forEach(item => {
+                listHtml += `
+                    <div class="flex items-stretch gap-2 mb-3 last:mb-0">
+                        <label class="flex-1 flex items-center gap-4 p-4 rounded-[1.5rem] border border-white transition-all cursor-pointer shadow-sm ${item.checked ? 'bg-white/50 opacity-70' : 'bg-white hover:bg-blue-50/50'}">
+                            <div class="relative shrink-0">
+                                <input type="checkbox" class="hidden" ${item.checked ? 'checked' : ''} onchange="window.toggleCheck(${item.id})" />
+                                ${item.checked ? '<i data-lucide="check-circle" class="w-6 h-6 text-[#38BDF8]"></i>' : '<i data-lucide="circle" class="w-6 h-6 text-[#B9E2FA]"></i>'}
+                            </div>
+                            <span class="font-bold text-sm ${item.checked ? 'text-[#5D4A45]/50 line-through' : 'text-[#5D4A45]'}">${escapeHTML(item.text)}</span>
+                        </label>
+                        <button onclick="window.deleteChecklistItem(${item.id})" class="w-12 shrink-0 flex items-center justify-center rounded-[1.5rem] bg-white text-red-200 hover:text-red-400 hover:bg-red-50 shadow-sm transition-colors border border-white active:scale-95">
+                            <i data-lucide="trash-2" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                `;
+            });
+
+            return `
+                <div class="px-5 mt-4">
+                    <div class="bg-white/80 backdrop-blur-md border border-white rounded-[2.5rem] p-6 shadow-md">
+                        <div class="flex justify-between items-center mb-6">
+                            <h2 class="font-black text-xl text-[#38BDF8] flex items-center gap-2"><i data-lucide="check-circle" class="w-6 h-6"></i> 行前提醒</h2>
+                            <span class="text-[11px] font-black text-[#38BDF8] bg-[#E0F2FE] px-3 py-1 rounded-full">${progress}% 完成</span>
+                        </div>
+                        
+                        <div class="h-2 w-full bg-blue-50 rounded-full overflow-hidden mb-6 shadow-inner">
+                            <div class="h-full bg-[#38BDF8] rounded-full transition-all duration-500" style="width: ${progress}%"></div>
+                        </div>
+
+                        <div class="space-y-0">
+                            ${listHtml}
+                        </div>
+                        
+                        <div class="flex items-center gap-2 mt-6 pt-4 border-t-2 border-dashed border-[#B9E2FA]/40">
+                            <input type="text" id="new-checklist-item" placeholder="自行新增提醒項目..." onkeydown="if(event.key === 'Enter') window.addChecklistItem()" class="flex-1 bg-white border border-white shadow-sm rounded-[1.5rem] px-4 py-4 text-sm font-bold text-[#5D4A45] focus:ring-2 focus:ring-[#38BDF8]/50 outline-none placeholder:text-gray-300" />
+                            <button onclick="window.addChecklistItem()" class="w-14 h-14 shrink-0 flex items-center justify-center bg-[#38BDF8] text-white rounded-[1.5rem] shadow-sm hover:bg-[#0EA5E9] transition-colors active:scale-95">
+                                <i data-lucide="plus" class="w-6 h-6"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        };
+
+        const renderModals = () => {
+            let html = '';
+            
+            if (state.modalConfig.isOpen) {
+                const types = [
+                    { id: 'spot', label: '景點', icon: '<i data-lucide="map-pin" class="w-4 h-4"></i>', color: 'text-[#F472B6]', bg: 'bg-[#FCE7F3]' },
+                    { id: 'food', label: '美食', icon: CustomIcons.Utensils, color: 'text-[#FB923C]', bg: 'bg-[#FFEDD5]' },
+                    { id: 'hotel', label: '住宿', icon: '<i data-lucide="bed" class="w-4 h-4"></i>', color: 'text-[#FBBF24]', bg: 'bg-[#FEF3C7]' },
+                    { id: 'transport', label: '交通', icon: '<i data-lucide="car" class="w-4 h-4"></i>', color: 'text-[#9CA3AF]', bg: 'bg-[#F3F4F6]' },
+                    { id: 'flight', label: '航班', icon: '<i data-lucide="plane" class="w-4 h-4"></i>', color: 'text-[#93C5FD]', bg: 'bg-[#DBEAFE]' },
+                ];
+
+                let typeButtonsHtml = '';
+                types.forEach(t => {
+                    const isTypeMatch = state.formData.type === t.id;
+                    typeButtonsHtml += `
+                        <button type="button" onclick="window.updateFormType('${t.id}')" class="flex-1 flex flex-col items-center gap-1 py-2 px-1 rounded-xl font-black text-[10px] transition-all ${isTypeMatch ? `${t.bg} ${t.color} shadow-sm` : 'text-gray-400 hover:bg-gray-50'}">
+                            ${t.icon}
+                            ${t.label}
+                        </button>
+                    `;
+                });
+
+                html += `
+                    <div class="fixed inset-0 z-[100] flex items-center justify-center bg-[#5D4A45]/40 backdrop-blur-sm p-4">
+                        <div class="bg-[#FFF4F7] w-full max-w-[400px] flex flex-col rounded-[2rem] shadow-2xl max-h-[85vh] border-4 border-white animate-pop overflow-hidden">
+                            <div class="flex justify-between items-center px-6 py-5 border-b border-pink-100 bg-[#FFF4F7] shrink-0">
+                                <h3 class="text-lg font-black text-[#5D4A45] flex items-center gap-2">
+                                    <i data-lucide="sparkles" class="w-5 h-5 text-[#FF82AB]"></i> 
+                                    ${state.modalConfig.isEdit ? '編輯行程' : '新增夢幻行程'}
+                                </h3>
+                                <button onclick="window.closeModal()" class="p-1.5 bg-white rounded-full shadow-sm text-gray-400 hover:text-gray-600 active:scale-95"><i data-lucide="x" class="w-5 h-5"></i></button>
+                            </div>
+                            
+                            <div class="px-6 py-5 overflow-y-auto space-y-5 bg-[#FFF4F7]">
+                                <div class="flex gap-2 bg-white/80 p-1.5 rounded-2xl shadow-inner overflow-x-auto no-scrollbar border border-white">
+                                    ${typeButtonsHtml}
+                                </div>
+
+                                <div>
+                                    <label class="text-[11px] font-bold text-[#5D4A45]/60 mb-1 block">時間或時段 (例：10:00 或 10:00-12:00)</label>
+                                    <input type="text" id="form-time" value="${escapeHTML(state.formData.time) || ''}" oninput="window.updateFormData('time', this.value)" placeholder="輸入時間" class="w-full bg-white border border-white shadow-sm rounded-xl px-3 py-2.5 text-base font-bold text-[#5D4A45] focus:ring-2 focus:ring-[#FFD1DC] outline-none" />
+                                </div>
+
+                                <div>
+                                    <label class="text-[11px] font-bold text-[#5D4A45]/60 mb-1 block">地點 / 標題 (必填)</label>
+                                    <input type="text" id="form-location" value="${escapeHTML(state.formData.location) || ''}" oninput="window.updateFormData('location', this.value)" placeholder="要去哪裡玩呀哈？" class="w-full bg-white border border-white shadow-sm rounded-xl px-3 py-2.5 text-base font-bold text-[#5D4A45] focus:ring-2 focus:ring-[#FFD1DC] outline-none" />
+                                </div>
+
+                                <div>
+                                    <label class="text-[11px] font-bold text-[#5D4A45]/60 mb-1 block">備註說明</label>
+                                    <textarea rows="2" id="form-notes" oninput="window.updateFormData('notes', this.value)" placeholder="記下想做的事..." class="w-full bg-white border border-white shadow-sm rounded-xl px-3 py-2.5 text-base font-bold text-[#5D4A45] focus:ring-2 focus:ring-[#FFD1DC] outline-none resize-none">${escapeHTML(state.formData.notes) || ''}</textarea>
+                                </div>
+                                
+                                <div>
+                                    <label class="text-[11px] font-bold text-[#5D4A45]/60 mb-1 block">票卷 / 細節資訊 (選填)</label>
+                                    <input type="text" id="form-detail" value="${escapeHTML(state.formData.detail) || ''}" oninput="window.updateFormData('detail', this.value)" placeholder="例: 樂桃 MM722 航班" class="w-full bg-white border border-white shadow-sm rounded-xl px-3 py-2.5 text-base font-bold text-[#5D4A45] focus:ring-2 focus:ring-[#FFD1DC] outline-none" />
+                                </div>
+
+                                <button onclick="window.saveItinerary()" class="w-full bg-gradient-to-r from-[#FF9EBE] to-[#FF82AB] text-white font-black text-lg py-3.5 rounded-2xl shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2">
+                                    <i data-lucide="save" class="w-5 h-5"></i>
+                                    儲存行程
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            if (state.deleteConfirm.isOpen) {
+                html += `
+                    <div class="fixed inset-0 z-[110] flex items-center justify-center bg-[#5D4A45]/40 backdrop-blur-sm px-5">
+                        <div class="bg-white w-full max-w-[300px] rounded-[2rem] p-6 shadow-2xl transform animate-pop text-center border-4 border-[#FFF0F4]">
+                            <div class="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-red-100">
+                                <i data-lucide="alert-triangle" class="w-8 h-8 text-red-400"></i>
+                            </div>
+                            <h3 class="text-xl font-black text-[#5D4A45] mb-2">確定要刪除嗎？</h3>
+                            <p class="text-sm font-bold text-[#5D4A45]/60 mb-6">
+                                即將刪除 <span class="text-[#FF6B9E] px-1">${escapeHTML(state.deleteConfirm.location)}</span> 的行程，刪除後無法復原喔！呀哈！
+                            </p>
+                            <div class="flex gap-3">
+                                <button onclick="window.closeDeleteModal()" class="flex-1 py-3 rounded-xl font-black text-[#5D4A45] bg-[#F1F5F9] hover:bg-[#E2E8F0] transition-colors">取消保留</button>
+                                <button onclick="window.executeDelete()" class="flex-1 py-3 rounded-xl font-black text-white bg-red-400 hover:bg-red-500 shadow-md transition-colors">確定刪除</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            document.getElementById('modal-root').innerHTML = html;
+        };
+
+        // ================= [全域事件方法] =================
+        
+        window.triggerPhotoUpload = () => {
+            document.getElementById('photo-upload').click();
+        };
+
+        window.handlePhotoUpload = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const MAX_WIDTH = 400; 
+                    const MAX_HEIGHT = 400;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) {
+                            height *= MAX_WIDTH / width;
+                            width = MAX_WIDTH;
+                        }
+                    } else {
+                        if (height > MAX_HEIGHT) {
+                            width *= MAX_HEIGHT / height;
+                            height = MAX_HEIGHT;
+                        }
+                    }
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    const base64 = canvas.toDataURL('image/jpeg', 0.6);
+                    
+                    setTimeout(() => {
+                        const caption = prompt('為這張相片寫下一句回憶吧！呀哈！(也可以留空)');
+                        if (caption !== null) {
+                            const dateStr = new Date().toLocaleDateString('zh-TW', { month: 'short', day: 'numeric' });
+                            state.memories.unshift({ id: Date.now(), image: base64, caption: caption || '美好的一天', date: dateStr });
+                            window.saveToCloud(); // 💡 存入雲端
+                        }
+                    }, 100);
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+            e.target.value = '';
+        };
+
+        window.deleteMemory = (id) => {
+            if(confirm('確定要刪除這張回憶照片嗎？呀哈！')) {
+                state.memories = state.memories.filter(m => m.id !== id);
+                window.saveToCloud(); // 💡 存入雲端
+            }
+        };
+
+        window.drawFortune = () => {
+            if (state.isFortuneDrawing) return;
+            state.isFortuneDrawing = true;
+            renderDOM();
+
+            const fortunes = [
+                "🌟 大吉！今天扭蛋一發入魂，想要哪隻就來哪隻！呀哈！",
+                "🍱 中吉！今天會吃到超級美味的隱藏版在地美食！烏拉！",
+                "🛍️ 小吉！今天會買到最後一個限量的超讚伴手禮！",
+                "📸 吉！今天天氣超好，不管怎麼拍照都超級好看！",
+                "♨️ 大吉！泡溫泉通體舒暢，旅途疲勞全消散！",
+                "💰 吉！匯率剛好很划算，結帳的時候感覺賺到了！"
+            ];
+
+            setTimeout(() => {
+                state.fortuneResult = fortunes[Math.floor(Math.random() * fortunes.length)];
+                state.isFortuneDrawing = false;
+                renderDOM();
+            }, 1200); 
+        };
+
+        window.switchTab = (tabId) => {
+            state.activeTab = tabId;
+            window.scrollTo({top: 0, behavior: 'smooth'});
+            renderDOM();
+        };
+
+        window.switchDay = (dayId) => {
+            state.activeDay = dayId;
+            state.activeAI = null;
+            state.copyItinerarySuccess = false;
+            window.scrollTo({top: 0, behavior: 'smooth'});
+            renderDOM();
+        };
+
+        window.toggleAI = (idx) => {
+            state.activeAI = state.activeAI === idx ? null : idx;
+            renderDOM();
+        };
+
+        window.openGoogleMapsRoute = () => {
+            const currentItinerary = state.itinerary[state.activeDay] || [];
+            if(currentItinerary.length === 0) return;
+            const locations = currentItinerary.map(item => encodeURIComponent(item.location)).join('/');
+            window.open(`https://www.google.com/maps/dir/${locations}`, '_blank');
+        };
+
+        window.openGoogleMaps = (dayId, idx) => {
+            const item = state.itinerary[dayId][idx];
+            const url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(item.location)}`;
+            window.open(url, '_blank', 'noopener,noreferrer');
+        };
+
+        window.copyTodayItinerary = () => {
+            const currentDayInfo = days.find(d => d.id === state.activeDay) || days[0];
+            const currentItinerary = state.itinerary[state.activeDay] || [];
+            if(currentItinerary.length === 0) return;
+
+            let text = `📅 2026.${currentDayInfo.date} (${currentDayInfo.name}之旅)\n`;
+            
+            const weather = window.weatherCache[state.activeDay];
+            if(weather && !weather.loading && !weather.error) {
+                text += `🌤️ 天氣預估：${weather.desc} ${weather.min}°-${weather.max}°C\n`;
+            }
+            text += `\n`;
+
+            currentItinerary.forEach((item) => {
+                let emoji = '📍';
+                if(item.type === 'flight') emoji = '✈️';
+                if(item.type === 'food') emoji = '🍱';
+                if(item.type === 'hotel') emoji = '🏨';
+                if(item.type === 'transport') emoji = '🚗';
+
+                text += `${emoji} ${item.time} | ${item.location}\n`;
+                if(item.detail) text += `   🎟️ ${item.detail}\n`;
+                if(item.notes) text += `   📝 ${item.notes}\n`;
+                text += `\n`;
+            });
+
+            text += `✨ 來自吉伊卡哇行程小幫手`;
+
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(text);
+            } else {
+                let textArea = document.createElement("textarea");
+                textArea.value = text;
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try { document.execCommand('copy'); } catch (err) {}
+                textArea.remove();
+            }
+
+            state.copyItinerarySuccess = true;
+            renderDOM();
+            setTimeout(() => {
+                state.copyItinerarySuccess = false;
+                renderDOM();
+            }, 3000);
+        };
+
+        window.playGacha = () => {
+            if (state.gachaAnimating) return;
+            
+            state.gachaAnimating = true;
+            renderDOM();
+
+            const options = ['拉麵 🍜', '燒肉 🥩', '迴轉壽司 🍣', '居酒屋 🍢', '便利商店大餐 🍙', '漢堡排 🍛', '豬排飯 🍱', '烏龍麵 🍲', '文字燒 🥘', '速食漢堡 🍔', '生魚片海鮮丼 🐟'];
+            let ticks = 0;
+            
+            const interval = setInterval(() => {
+                state.gachaResult = options[Math.floor(Math.random() * options.length)];
+                renderDOM(); 
+                ticks++;
+                
+                if(ticks > 15) {
+                    clearInterval(interval);
+                    state.gachaAnimating = false;
+                    state.gachaResult = `🐰 兔兔說：吃【${state.gachaResult}】！烏拉！！`;
+                    renderDOM();
+                }
+            }, 100);
+        };
+
+        window.toggleCheck = (id) => {
+            state.checklist = state.checklist.map(item => 
+                item.id === id ? { ...item, checked: !item.checked } : item
+            );
+            window.saveToCloud(); // 💡 存入雲端
+        };
+
+        window.addChecklistItem = () => {
+            const input = document.getElementById('new-checklist-item');
+            const text = input.value.trim();
+            if (!text) return; 
+
+            state.checklist.push({ id: Date.now(), text: text, checked: false });
+            window.saveToCloud(); // 💡 存入雲端
+        };
+
+        window.deleteChecklistItem = (id) => {
+            state.checklist = state.checklist.filter(item => item.id !== id);
+            window.saveToCloud(); // 💡 存入雲端
+        };
+
+        window.toggleRateEdit = (isEditing) => {
+            state.isEditingRate = isEditing;
+            renderDOM();
+        };
+
+        window.updateRateValue = (val) => {
+            state.exchangeRate = parseFloat(val) || 0.215;
+            state.isEditingRate = false;
+            window.saveToCloud(); // 💡 存入雲端 (讓全家人匯率一致)
+        };
+
+        window.updateJpy = (val) => {
+            state.jpyInput = val;
+            renderDOM();
+        };
+
+        window.handleJpyInput = (val) => {
+            state.jpyInput = val;
+            const resultText = document.getElementById('twd-result-text');
+            if (resultText) {
+                const twd = Math.round(state.jpyInput * state.exchangeRate);
+                resultText.innerText = `NT$ ${twd.toLocaleString()}`;
+            }
+        };
+
+        window.copyToClipboard = () => {
+            const twd = Math.round(state.jpyInput * state.exchangeRate);
+            
+            if (navigator.clipboard && window.isSecureContext) {
+                navigator.clipboard.writeText(twd.toString());
+            } else {
+                let textArea = document.createElement("textarea");
+                textArea.value = twd.toString();
+                textArea.style.position = "fixed";
+                textArea.style.left = "-999999px";
+                document.body.appendChild(textArea);
+                textArea.focus();
+                textArea.select();
+                try { document.execCommand('copy'); } catch (err) {}
+                textArea.remove();
+            }
+
+            state.copied = true;
+            renderDOM();
+            setTimeout(() => { state.copied = false; renderDOM(); }, 2000);
+        };
+
+        window.openAddModal = () => {
+            state.formData = { type: 'spot', time: '10:00-12:00', location: '', notes: '', detail: '', highlights: '' };
+            state.modalConfig = { isOpen: true, isEdit: false, dayId: state.activeDay, index: null };
+            renderModals();
+            lucide.createIcons();
+        };
+
+        window.openEditModal = (dayId, idx) => {
+            const item = state.itinerary[dayId][idx];
+            state.formData = { ...item };
+            state.modalConfig = { isOpen: true, isEdit: true, dayId: dayId, index: idx };
+            renderModals();
+            lucide.createIcons();
+        };
+
+        window.closeModal = () => {
+            state.modalConfig.isOpen = false;
+            renderModals();
+        };
+
+        window.updateFormType = (type) => {
+            state.formData.type = type;
+            renderModals(); 
+            lucide.createIcons();
+        };
+
+        window.updateFormData = (key, value) => {
+            state.formData[key] = value;
+        };
+
+        window.saveItinerary = () => {
+            if (!state.formData.location.trim()) {
+                alert('請輸入地點！呀哈！');
+                return;
+            }
+            
+            const dayList = [...(state.itinerary[state.modalConfig.dayId] || [])];
+            
+            if (state.modalConfig.isEdit) {
+                dayList[state.modalConfig.index] = state.formData;
+            } else {
+                dayList.push(state.formData);
+            }
+            
+            dayList.sort((a, b) => (a.time || '').localeCompare(b.time || ''));
+            state.itinerary[state.modalConfig.dayId] = dayList;
+            
+            state.modalConfig.isOpen = false;
+            window.saveToCloud(); // 💡 存入雲端
+        };
+
+        window.confirmDelete = (dayId, idx) => {
+            const item = state.itinerary[dayId][idx];
+            state.deleteConfirm = { isOpen: true, dayId: dayId, index: idx, location: item.location };
+            renderModals();
+            lucide.createIcons();
+        };
+
+        window.closeDeleteModal = () => {
+            state.deleteConfirm.isOpen = false;
+            renderModals();
+        };
+
+        window.executeDelete = () => {
+            const dayList = [...(state.itinerary[state.deleteConfirm.dayId] || [])];
+            dayList.splice(state.deleteConfirm.index, 1);
+            state.itinerary[state.deleteConfirm.dayId] = dayList;
+            
+            state.deleteConfirm = { isOpen: false, dayId: '', index: null, location: '' };
+            state.activeAI = null;
+            window.saveToCloud(); // 💡 存入雲端
+        };
+
+        // ================= [初始化] =================
+        document.addEventListener("DOMContentLoaded", () => {
+            renderDOM();
+        });
+
+    </script>
+</body>
+</html>
